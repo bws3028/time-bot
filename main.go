@@ -136,32 +136,33 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 	hours = toFixed(hours, 1)
 
 	//database logic
-	{
-		//Get all users in discord_user table
-		getAllUsersQuery := "SELECT * FROM discord_user"
-		allUsers, err := db.Query(getAllUsersQuery)
-		if err != nil {
-			log.Fatal("Failed to retrieve all users:", err)
-		}
-		defer allUsers.Close()
 
-		// wg := new(sync.WaitGroup)
-		
-		//Loop through all users
-		for allUsers.Next() {
-			var primaryKey string
-			var userID string
-			switch err := allUsers.Scan(&primaryKey, &userID); err{
-			case nil:
-				// wg.Add(1)
-				//Send dm to each user
-				UserDMHandler(db, s, m, userID, primaryKey, hours)
-			default:
-				log.Fatal(err)
-			}
-		}
-		// wg.Wait()
+	//Get all users in discord_user table
+	getAllUsersQuery := "SELECT * FROM discord_user"
+	allUsers, err := db.Query(getAllUsersQuery)
+	if err != nil {
+		log.Fatal("Failed to retrieve all users:", err)
 	}
+	defer allUsers.Close()
+
+	// wg := new(sync.WaitGroup)
+	
+	//Loop through all users
+	for allUsers.Next() {
+		var primaryKey string
+		var userID string
+		switch err := allUsers.Scan(&primaryKey, &userID); err{
+		case nil:
+			fmt.Printf("userID: %s, channelID: %s, hours: %2f", primaryKey, userID, hours)
+			// wg.Add(1)
+			//Send dm to each user
+			UserDMHandler(db, s, m, userID, primaryKey, hours)
+		default:
+			log.Fatal(err)
+		}
+	}
+	// wg.Wait()
+	
 	fmt.Println("All users entered their hours")
 }	
 
