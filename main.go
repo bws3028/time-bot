@@ -9,19 +9,12 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type Answer struct {
-	OrigChannelID string
-	Hours         float64
-}
-
-var responses map[string]Answer = map[string]Answer{}
 
 const prefix string = "!gobot"
 
@@ -53,7 +46,6 @@ func main() {
 			return
 		}
 		
-		
 		// DM logic
 		{
 			if m.GuildID == "" {
@@ -74,7 +66,11 @@ func main() {
 			
 			switch command := strings.Split(message, " ")[0]; command {
 			case "dm":
-				UserPropmtHandler(s, m)
+				channel, err := s.UserChannelCreate(m.Author.ID)
+				if err != nil {
+					log.Fatal(err)
+				}
+				s.ChannelMessageSend(channel.ID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
 			case "add":
 				UserAddHandler(db,s,m)
 			}
@@ -121,9 +117,10 @@ func UserAddHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate
 }
 
 func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate) {
-	response, ok := responses[m.ChannelID]
-	if !ok {
-		return
+
+	channel, err := s.UserChannelCreate(m.Author.ID)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	//discord logic
@@ -135,13 +132,6 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 	//Convert float to 1 precision
 	hours = toFixed(hours, 1)
 
-	response.Hours = hours
-	channel, err := s.UserChannelCreate(m.Author.ID)
-	if err != nil {
-		log.Panic(err)
-	}
-	s.ChannelMessageSend(channel.ID, "Recording "+m.Content+" hours for the week")
-
 	//database logic
 	{
 		//Get all users in discord_user table
@@ -151,8 +141,6 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 			log.Fatal("Failed to retrieve all users:", err)
 		}
 		defer allUsers.Close()
-
-		wg := new(sync.WaitGroup)
 		
 		//Loop through all users
 		for allUsers.Next() {
@@ -161,18 +149,15 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 			switch err := allUsers.Scan(&primaryKey, &userID); err{
 			case nil:
 				//Send dm to each user
-				wg.Add(1)
-				go UserDMHandler(db, s, m, wg, primaryKey, hours)
+				go UserDMHandler(db, s, m, channel, primaryKey, hours)
 			}
 		}
 
-		wg.Wait()
 	}
 	fmt.Println("All users entered their hours")
 }	
 
-func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, wg *sync.WaitGroup, userIDForeignKey string, hours float64) {
-	defer wg.Done()
+func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel, userIDForeignKey string, hours float64) {
 	//Check if user exists in 
 	queryHoursExist := "SELECT hours.ID FROM hours JOIN discord_user ON (hours.userID=discord_user.ID) WHERE discord_user.userID IN (?) LIMIT 1"
 	select_res := db.QueryRow(queryHoursExist, userIDForeignKey)
@@ -196,26 +181,9 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate,
 	default:
 		log.Fatal(err)
 	} 
+	
+	s.ChannelMessageSend(channel.ID, "Recorded " + fmt.Sprintf("%f", hours) + " hours for the week")
 
-	delete(responses, m.ChannelID)
-}
-
-func UserPropmtHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
-	// user channel
-	channel, err := s.UserChannelCreate(m.Author.ID)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	if _, ok := responses[channel.ID]; !ok {
-		responses[channel.ID] = Answer{
-			OrigChannelID: m.ChannelID,
-			Hours:         -1,
-		}
-		s.ChannelMessageSend(channel.ID, "Input your hours for the week as a Float (10.0, 5.7):")
-	} else {
-		s.ChannelMessageSend(channel.ID, "Hey dont forget to input your hours here as a Float (10.0, 5.7):")
-	}
 }
 
 func round(num float64) int {
