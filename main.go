@@ -9,11 +9,11 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/joho/godotenv"
 )
 
 type Answer struct {
@@ -27,7 +27,6 @@ const prefix string = "!gobot"
 
 func main() {
 	//Load env vars
-	godotenv.Load()
 	discord_token := os.Getenv("DISCORD_TOKEN")
 	db_connection_str := os.Getenv("MYSQL_PRIVATE_URL")
 	fmt.Println(db_connection_str)
@@ -53,7 +52,8 @@ func main() {
 		if m.Author.ID == s.State.User.ID {
 			return
 		}
-
+		
+		
 		// DM logic
 		{
 			if m.GuildID == "" {
@@ -71,9 +71,15 @@ func main() {
 			message := strings.Replace(m.Content, prefix, "", 1)
 			message, _ = strings.CutPrefix(message, " ")
 
-			if strings.Split(message, " ")[0] == "dm" {
+			
+			switch command := strings.Split(message, " ")[0]; command {
+			case "dm":
 				UserPropmtHandler(s, m)
+			case "add":
+				UserAddHandler(db,s,m)
 			}
+			
+
 		}
 
 	})
@@ -93,6 +99,27 @@ func main() {
 	<-sc
 }
 
+func UserAddHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate) {
+	userID := m.Author.ID
+
+	// check if ID is stored in db
+	query := "SELECT * FROM discord_user WHERE userID IN (?)"
+	checkUserQuery := db.QueryRow(query, userID)
+	
+	var userIDCheck string
+	switch err := checkUserQuery.Scan(&userIDCheck); err {
+	case sql.ErrNoRows:
+		//add user to discord_user table		
+		query = "INSERT INTO discord_user (userID) VALUES (?)"
+		_, err = db.Exec(query, userID)
+		if err != nil{
+			log.Fatal(err)
+		}
+	default:
+		log.Fatal(err)
+	}
+}
+
 func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate) {
 	response, ok := responses[m.ChannelID]
 	if !ok {
@@ -105,7 +132,7 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 		log.Fatal("Failed to convert string to float")
 	}
 
-	//Conver float to 1 precision
+	//Convert float to 1 precision
 	hours = toFixed(hours, 1)
 
 	response.Hours = hours
@@ -117,31 +144,58 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 
 	//database logic
 	{
+		//Get all users in discord_user table
+		getAllUsersQuery := "SELECT userID FROM discord_user"
+		allUsers, err := db.Query(getAllUsersQuery)
+		if err != nil {
+			log.Fatal("Failed to retrieve all users:", err)
+		}
+		defer allUsers.Close()
 
-		//Check if user exists in db
-		query_check_user := "SELECT * FROM discord_message WHERE userID IN (?) LIMIT 1"
-		select_res := db.QueryRow(query_check_user, m.ChannelID)
+		wg := new(sync.WaitGroup)
 		
-		var idCheck int
-		var usrChanIDCheck string
-		var hoursCheck float32
-		switch err := select_res.Scan(&idCheck, &usrChanIDCheck, &hoursCheck); err {
-		case sql.ErrNoRows:
-			query := "INSERT INTO discord_message (userID, hours) VALUES (?,?)"
-			_, err := db.Exec(query, m.ChannelID, hours)
-			if err != nil {
-				log.Panic(err)
+		//Loop through all users
+		for allUsers.Next() {
+			var primaryKey string
+			var userID string
+			switch err := allUsers.Scan(&primaryKey, &userID); err{
+			case nil:
+				//Send dm to each user
+				wg.Add(1)
+				go UserDMHandler(db, s, m, wg, primaryKey, hours)
 			}
-		case nil:
-			query := "UPDATE discord_message SET hours=? WHERE userID IN (?)"
-			_, err := db.Exec(query, hours, m.ChannelID)
-			if err != nil {
-				log.Panic(err)
-			}
-		default:
-			log.Fatal(err)
-		} 
+		}
+
+		wg.Wait()
 	}
+	fmt.Println("All users entered their hours")
+}	
+
+func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, wg *sync.WaitGroup, userIDForeignKey string, hours float64) {
+	defer wg.Done()
+	//Check if user exists in 
+	queryHoursExist := "SELECT hours.ID FROM hours JOIN discord_user ON (hours.userID=discord_user.ID) WHERE discord_user.userID IN (?) LIMIT 1"
+	select_res := db.QueryRow(queryHoursExist, userIDForeignKey)
+
+	var idCheck int
+	switch err := select_res.Scan(&idCheck); err {
+	case sql.ErrNoRows:
+		// If user hours does not exist in hours table, insert the user
+		query := "INSERT INTO hours (userID, hours) VALUES (?,?)"
+		_, err := db.Exec(query, userIDForeignKey, hours)
+		if err != nil {
+			log.Panic(err)
+		}
+	case nil:
+		// If user hours already exists in hours table, update the user
+		query := "UPDATE hours SET hours=? WHERE userID IN (?)"
+		_, err := db.Exec(query, hours, userIDForeignKey)
+		if err != nil {
+			log.Panic(err)
+		}
+	default:
+		log.Fatal(err)
+	} 
 
 	delete(responses, m.ChannelID)
 }
