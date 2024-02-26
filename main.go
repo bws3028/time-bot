@@ -170,10 +170,13 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate)
 
 	var userIDForeignKey int
 	getForeignKey := db.QueryRow("SELECT ID FROM discord_user WHERE userID IN(?)", m.ChannelID)
-	err = getForeignKey.Scan(&userIDForeignKey)
-	if err != nil {
+	switch err = getForeignKey.Scan(&userIDForeignKey); err {
+	case sql.ErrNoRows: 
+		log.Print("No rows found for userID")
+	default:
 		log.Fatal(err)
 	}
+	
 
 	//Check if user exists in 
 	queryHoursExist := "SELECT ID FROM hours JOIN discord_user WHERE userID IN (?) LIMIT 1"
