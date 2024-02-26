@@ -156,6 +156,8 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 				wg.Add(1)
 				//Send dm to each user
 				go UserDMHandler(db, s, m, channel, primaryKey, hours, wg)
+			default:
+				log.Fatal(err)
 			}
 		}
 		wg.Wait()
