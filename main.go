@@ -48,10 +48,7 @@ func main() {
 			return
 		}
 
-		channel, err := s.UserChannelCreate(m.Author.ID)
-		if err != nil{
-			log.Fatal(err)
-		}
+		
 
 		fmt.Println("Guild ID: " + m.GuildID)
 		
@@ -74,7 +71,7 @@ func main() {
 		switch command := strings.Split(message, " ")[0]; command {
 		case "dm":
 			if !gettingAllHours{
-				UserGetAllUserHoursHandler(db, s, m, channel)
+				UserGetAllUserHoursHandler(db, s, m)
 			}
 		case "add":
 			fmt.Println("Adding user...")
@@ -120,7 +117,7 @@ func UserAddHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate
 	}
 }
 
-func UserGetAllUserHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel) {
+func UserGetAllUserHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	fmt.Println("Starting hours handler")
 	
@@ -142,9 +139,13 @@ func UserGetAllUserHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.M
 		var userID string
 		switch err := allUsers.Scan(&primaryKey, &userID); err{
 		case nil:
-			fmt.Printf("userID: %s, channelID: %s", primaryKey, userID)
+			fmt.Printf("userID: %s, channelID: %s\n", primaryKey, userID)
 			// wg.Add(1)
 			//Send dm to each user
+			_, err := s.UserChannelCreate(userID)
+			if err != nil{
+				log.Fatal(err)
+			}
 			s.ChannelMessageSend(userID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
 		default:
 			log.Fatal(err)
