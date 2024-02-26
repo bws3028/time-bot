@@ -46,12 +46,14 @@ func main() {
 			return
 		}
 
+		channel, err := s.UserChannelCreate(m.Author.ID)
+
 		fmt.Println("Guild ID: " + m.GuildID)
 		
 		// DM logic
 		
 		if m.GuildID == "" {
-			UserGetHoursHandler(db, s, m)
+			UserGetHoursHandler(db, s, m, channel)
 		}
 		
 
@@ -68,7 +70,6 @@ func main() {
 		
 		switch command := strings.Split(message, " ")[0]; command {
 		case "dm":
-			channel, err := s.UserChannelCreate(m.Author.ID)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -102,11 +103,11 @@ func UserAddHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate
 	userID := m.Author.ID
 
 	// check if ID is stored in db
-	query := "SELECT * FROM discord_user WHERE userID IN (?)"
+	query := "SELECT ID FROM discord_user WHERE userID IN (?)"
 	checkUserQuery := db.QueryRow(query, userID)
 	
-	var userIDCheck string
-	switch err := checkUserQuery.Scan(&userIDCheck); err {
+	var iDCheck string
+	switch err := checkUserQuery.Scan(&iDCheck); err {
 	case sql.ErrNoRows:
 		//add user to discord_user table		
 		query = "INSERT INTO discord_user (userID) VALUES (?)"
@@ -121,13 +122,9 @@ func UserAddHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate
 	}
 }
 
-func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate) {
+func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel) {
 
-	channel, err := s.UserChannelCreate(m.Author.ID)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	fmt.Println("Starting hours handler")
 	//discord logic
 	hours, err := strconv.ParseFloat(strings.TrimSpace(m.Content), 32)
 	if err != nil {
@@ -154,7 +151,7 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 			switch err := allUsers.Scan(&primaryKey, &userID); err{
 			case nil:
 				//Send dm to each user
-				go UserDMHandler(db, s, m, channel.ID, primaryKey, hours)
+				go UserDMHandler(db, s, m, channel, primaryKey, hours)
 			}
 		}
 
@@ -162,7 +159,8 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 	fmt.Println("All users entered their hours")
 }	
 
-func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channelID string, userIDForeignKey string, hours float64) {
+func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel, userIDForeignKey string, hours float64) {
+	fmt.Println("Starting dm handler->after hours handler")
 	//Check if user exists in 
 	queryHoursExist := "SELECT hours.ID FROM hours JOIN discord_user ON (hours.userID=discord_user.ID) WHERE discord_user.userID IN (?) LIMIT 1"
 	select_res := db.QueryRow(queryHoursExist, userIDForeignKey)
@@ -187,7 +185,7 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate,
 		log.Fatal(err)
 	} 
 	
-	s.ChannelMessageSend(channelID, "Recorded " + fmt.Sprintf("%f", hours) + " hours for the week")
+	s.ChannelMessageSend(channel.ID, "Recorded " + fmt.Sprintf("%f", hours) + " hours for the week")
 
 }
 
