@@ -138,7 +138,7 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 	//database logic
 	{
 		//Get all users in discord_user table
-		getAllUsersQuery := "SELECT userID FROM discord_user"
+		getAllUsersQuery := "SELECT * FROM discord_user"
 		allUsers, err := db.Query(getAllUsersQuery)
 		if err != nil {
 			log.Fatal("Failed to retrieve all users:", err)
