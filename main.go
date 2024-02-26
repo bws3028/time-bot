@@ -18,6 +18,7 @@ import (
 
 
 const prefix string = "!gobot"
+var gettingAllHours bool = false
 
 func main() {
 	//Load env vars
@@ -48,18 +49,19 @@ func main() {
 		}
 
 		channel, err := s.UserChannelCreate(m.Author.ID)
+		if err != nil{
+			log.Fatal(err)
+		}
 
 		fmt.Println("Guild ID: " + m.GuildID)
 		
 		// DM logic
-		
 		if m.GuildID == "" {
-			UserGetHoursHandler(db, s, m, channel)
+			UserDMHandler(db, s, m)
 		}
 		
 
 		// Server logic
-		
 		args := strings.Split(m.Content, " ")
 		if args[0] != prefix {
 			return
@@ -71,18 +73,13 @@ func main() {
 		
 		switch command := strings.Split(message, " ")[0]; command {
 		case "dm":
-			if err != nil {
-				log.Fatal(err)
+			if !gettingAllHours{
+				UserGetAllUserHoursHandler(db, s, m, channel)
 			}
-			s.ChannelMessageSend(channel.ID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
 		case "add":
 			fmt.Println("Adding user...")
 			UserAddHandler(db,s,m)
 		}
-			
-
-		
-
 	})
 
 	session.Identify.Intents = discordgo.IntentsAllWithoutPrivileged
@@ -123,20 +120,12 @@ func UserAddHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate
 	}
 }
 
-func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel) {
+func UserGetAllUserHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel) {
 
 	fmt.Println("Starting hours handler")
-	//discord logic
-	hours, err := strconv.ParseFloat(strings.TrimSpace(m.Content), 32)
-	if err != nil {
-		log.Fatal("Failed to convert string to float")
-	}
-
-	//Convert float to 1 precision
-	hours = toFixed(hours, 1)
+	
 
 	//database logic
-
 	//Get all users in discord_user table
 	getAllUsersQuery := "SELECT * FROM discord_user"
 	allUsers, err := db.Query(getAllUsersQuery)
@@ -153,10 +142,10 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 		var userID string
 		switch err := allUsers.Scan(&primaryKey, &userID); err{
 		case nil:
-			fmt.Printf("userID: %s, channelID: %s, hours: %2f", primaryKey, userID, hours)
+			fmt.Printf("userID: %s, channelID: %s", primaryKey, userID)
 			// wg.Add(1)
 			//Send dm to each user
-			UserDMHandler(db, s, m, userID, primaryKey, hours)
+			s.ChannelMessageSend(userID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
 		default:
 			log.Fatal(err)
 		}
@@ -164,13 +153,30 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 	// wg.Wait()
 	
 	fmt.Println("All users entered their hours")
+	gettingAllHours = false
 }	
 
-func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channelID string, userIDForeignKey string, hours float64) {
+func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate) {
 	// defer wg.Done()
-	fmt.Println("Starting dm handler->after hours handler")
+	fmt.Println("Starting dm handler")
+	//discord logic
+	hours, err := strconv.ParseFloat(strings.TrimSpace(m.Content), 32)
+	if err != nil {
+		log.Fatal("Failed to convert string to float")
+	}
+
+	//Convert float to 1 precision
+	hours = toFixed(hours, 1)
+
+	var userIDForeignKey int
+	getForeignKey := db.QueryRow("SELECT ID FROM discord_user WHERE userID IN(?)", m.ChannelID)
+	err = getForeignKey.Scan(&userIDForeignKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	//Check if user exists in 
-	queryHoursExist := "SELECT hours.ID FROM hours JOIN discord_user ON (hours.userID=discord_user.ID) WHERE discord_user.ID IN (?) LIMIT 1"
+	queryHoursExist := "SELECT ID FROM hours JOIN discord_user WHERE userID IN (?) LIMIT 1"
 	select_res := db.QueryRow(queryHoursExist, userIDForeignKey)
 
 	var idCheck int
@@ -193,7 +199,7 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate,
 		log.Fatal(err)
 	} 
 	
-	s.ChannelMessageSend(channelID, "Recorded " + fmt.Sprintf("%f", hours) + " hours for the week")
+	s.ChannelMessageSend(m.ChannelID, "Recorded " + fmt.Sprintf("%f", hours) + " hours for the week")
 
 }
 
