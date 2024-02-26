@@ -142,11 +142,12 @@ func UserGetAllUserHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.M
 			fmt.Printf("userID: %s, channelID: %s\n", primaryKey, userID)
 			// wg.Add(1)
 			//Send dm to each user
-			_, err := s.UserChannelCreate(userID)
+			userChannel, err := s.UserChannelCreate(userID)
 			if err != nil{
 				log.Fatal(err)
 			}
-			s.ChannelMessageSend(userID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
+			fmt.Println("User Channel ID:" + userChannel.ID)
+			s.ChannelMessageSend(userChannel.ID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
 		default:
 			log.Fatal(err)
 		}
