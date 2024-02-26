@@ -152,7 +152,6 @@ func UserGetAllUserHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.M
 			log.Fatal(err)
 		}
 	}
-	// wg.Wait()
 	
 	fmt.Println("All users entered their hours")
 	gettingAllHours = false
@@ -168,8 +167,6 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate)
 	switch err := getForeignKey.Scan(&userIDForeignKey); err {
 	case sql.ErrNoRows: 
 		return
-	default:
-		log.Fatal(err)
 	}
 
 	hours, err := strconv.ParseFloat(strings.TrimSpace(m.Content), 32)
@@ -187,6 +184,7 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate)
 	var idCheck int
 	switch err := select_res.Scan(&idCheck); err {
 	case sql.ErrNoRows:
+		fmt.Println("Inserting into hours")
 		// If user hours does not exist in hours table, insert the user
 		query := "INSERT INTO hours (userID, hours) VALUES (?,?)"
 		_, err := db.Exec(query, userIDForeignKey, preciseHours)
@@ -195,6 +193,7 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate)
 		}
 	case nil:
 		// If user hours already exists in hours table, update the user
+		fmt.Println("Updating hours")
 		query := "UPDATE hours SET hours=? WHERE userID IN (?)"
 		_, err := db.Exec(query, preciseHours, userIDForeignKey)
 		if err != nil {
