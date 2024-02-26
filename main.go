@@ -181,7 +181,7 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate)
 	
 
 	//Check if user exists in 
-	queryHoursExist := "SELECT hours.ID FROM hours JOIN discord_user WHERE userID IN (?) LIMIT 1"
+	queryHoursExist := "SELECT ID FROM hours WHERE userID IN (?) LIMIT 1"
 	select_res := db.QueryRow(queryHoursExist, userIDForeignKey)
 
 	var idCheck int
