@@ -154,7 +154,7 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 			switch err := allUsers.Scan(&primaryKey, &userID); err{
 			case nil:
 				//Send dm to each user
-				go UserDMHandler(db, s, m, channel, primaryKey, hours)
+				go UserDMHandler(db, s, m, channel.ID, primaryKey, hours)
 			}
 		}
 
@@ -162,7 +162,7 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 	fmt.Println("All users entered their hours")
 }	
 
-func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel, userIDForeignKey string, hours float64) {
+func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channelID string, userIDForeignKey string, hours float64) {
 	//Check if user exists in 
 	queryHoursExist := "SELECT hours.ID FROM hours JOIN discord_user ON (hours.userID=discord_user.ID) WHERE discord_user.userID IN (?) LIMIT 1"
 	select_res := db.QueryRow(queryHoursExist, userIDForeignKey)
@@ -187,7 +187,7 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate,
 		log.Fatal(err)
 	} 
 	
-	s.ChannelMessageSend(channel.ID, "Recorded " + fmt.Sprintf("%f", hours) + " hours for the week")
+	s.ChannelMessageSend(channelID, "Recorded " + fmt.Sprintf("%f", hours) + " hours for the week")
 
 }
 
