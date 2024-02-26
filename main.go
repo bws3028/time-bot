@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
@@ -143,6 +144,8 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 			log.Fatal("Failed to retrieve all users:", err)
 		}
 		defer allUsers.Close()
+
+		wg := new(sync.WaitGroup)
 		
 		//Loop through all users
 		for allUsers.Next() {
@@ -150,16 +153,18 @@ func UserGetHoursHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageC
 			var userID string
 			switch err := allUsers.Scan(&primaryKey, &userID); err{
 			case nil:
+				wg.Add(1)
 				//Send dm to each user
-				go UserDMHandler(db, s, m, channel, primaryKey, hours)
+				go UserDMHandler(db, s, m, channel, primaryKey, hours, wg)
 			}
 		}
-
+		wg.Wait()
 	}
 	fmt.Println("All users entered their hours")
 }	
 
-func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel, userIDForeignKey string, hours float64) {
+func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate, channel *discordgo.Channel, userIDForeignKey string, hours float64, wg *sync.WaitGroup) {
+	defer wg.Done()
 	fmt.Println("Starting dm handler->after hours handler")
 	//Check if user exists in 
 	queryHoursExist := "SELECT hours.ID FROM hours JOIN discord_user ON (hours.userID=discord_user.ID) WHERE discord_user.userID IN (?) LIMIT 1"
