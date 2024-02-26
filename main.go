@@ -72,6 +72,7 @@ func main() {
 				}
 				s.ChannelMessageSend(channel.ID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
 			case "add":
+				fmt.Println("Adding user...")
 				UserAddHandler(db,s,m)
 			}
 			
@@ -111,6 +112,8 @@ func UserAddHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate
 		if err != nil{
 			log.Fatal(err)
 		}
+	case nil:
+		s.ChannelMessageSend(m.ChannelID, "User already added")
 	default:
 		log.Fatal(err)
 	}
