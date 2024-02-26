@@ -30,6 +30,7 @@ func main() {
 	godotenv.Load()
 	discord_token := os.Getenv("DISCORD_TOKEN")
 	db_connection_str := os.Getenv("MYSQL_PRIVATE_URL")
+	fmt.Println(db_connection_str)
 
 	//open a discord bot session
 	session, err := discordgo.New("Bot " + discord_token)
