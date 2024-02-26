@@ -45,39 +45,41 @@ func main() {
 		if m.Author.ID == s.State.User.ID {
 			return
 		}
+
+		fmt.Println("Guild ID: " + m.GuildID)
 		
 		// DM logic
-		{
-			if m.GuildID == "" {
-				UserGetHoursHandler(db, s, m)
-			}
+		
+		if m.GuildID == "" {
+			UserGetHoursHandler(db, s, m)
 		}
+		
 
 		// Server logic
-		{
-			args := strings.Split(m.Content, " ")
-			if args[0] != prefix {
-				return
-			}
-
-			message := strings.Replace(m.Content, prefix, "", 1)
-			message, _ = strings.CutPrefix(message, " ")
-
-			
-			switch command := strings.Split(message, " ")[0]; command {
-			case "dm":
-				channel, err := s.UserChannelCreate(m.Author.ID)
-				if err != nil {
-					log.Fatal(err)
-				}
-				s.ChannelMessageSend(channel.ID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
-			case "add":
-				fmt.Println("Adding user...")
-				UserAddHandler(db,s,m)
-			}
-			
-
+		
+		args := strings.Split(m.Content, " ")
+		if args[0] != prefix {
+			return
 		}
+
+		message := strings.Replace(m.Content, prefix, "", 1)
+		message, _ = strings.CutPrefix(message, " ")
+
+		
+		switch command := strings.Split(message, " ")[0]; command {
+		case "dm":
+			channel, err := s.UserChannelCreate(m.Author.ID)
+			if err != nil {
+				log.Fatal(err)
+			}
+			s.ChannelMessageSend(channel.ID, "Input your hours for the week as a Float (ex: 10.0, 5.7):")
+		case "add":
+			fmt.Println("Adding user...")
+			UserAddHandler(db,s,m)
+		}
+			
+
+		
 
 	})
 
