@@ -29,7 +29,7 @@ func main() {
 	//Load env vars
 	godotenv.Load()
 	discord_token := os.Getenv("DISCORD_TOKEN")
-	db_connection_str := os.Getenv("RAILWAY_MYSQL_CONNECTIONSTR")
+	db_connection_str := os.Getenv("MYSQL_PRIVATE_URL")
 
 	//open a discord bot session
 	session, err := discordgo.New("Bot " + discord_token)
