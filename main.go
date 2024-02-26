@@ -162,23 +162,23 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate)
 	// defer wg.Done()
 	fmt.Println("Starting dm handler")
 	//discord logic
+
+	var userIDForeignKey int
+	getForeignKey := db.QueryRow("SELECT ID FROM discord_user WHERE userID IN(?)", m.ChannelID)
+	switch err := getForeignKey.Scan(&userIDForeignKey); err {
+	case sql.ErrNoRows: 
+		return
+	default:
+		log.Fatal(err)
+	}
+
 	hours, err := strconv.ParseFloat(strings.TrimSpace(m.Content), 32)
 	if err != nil {
 		log.Fatal("Failed to convert string to float")
 	}
 
 	//Convert float to 1 precision
-	hours = toFixed(hours, 1)
-
-	var userIDForeignKey int
-	getForeignKey := db.QueryRow("SELECT ID FROM discord_user WHERE userID IN(?)", m.ChannelID)
-	switch err = getForeignKey.Scan(&userIDForeignKey); err {
-	case sql.ErrNoRows: 
-		log.Print("No rows found for userID")
-	default:
-		log.Fatal(err)
-	}
-	
+	preciseHours := toFixed(hours, 1)
 
 	//Check if user exists in 
 	queryHoursExist := "SELECT ID FROM hours WHERE userID IN (?) LIMIT 1"
@@ -189,14 +189,14 @@ func UserDMHandler(db *sql.DB, s *discordgo.Session, m *discordgo.MessageCreate)
 	case sql.ErrNoRows:
 		// If user hours does not exist in hours table, insert the user
 		query := "INSERT INTO hours (userID, hours) VALUES (?,?)"
-		_, err := db.Exec(query, userIDForeignKey, hours)
+		_, err := db.Exec(query, userIDForeignKey, preciseHours)
 		if err != nil {
 			log.Panic(err)
 		}
 	case nil:
 		// If user hours already exists in hours table, update the user
 		query := "UPDATE hours SET hours=? WHERE userID IN (?)"
-		_, err := db.Exec(query, hours, userIDForeignKey)
+		_, err := db.Exec(query, preciseHours, userIDForeignKey)
 		if err != nil {
 			log.Panic(err)
 		}
